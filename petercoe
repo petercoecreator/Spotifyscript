@@ -1,0 +1,5082 @@
+local HttpService = game:GetService("HttpService")
+
+local Players = game:GetService("Players")
+
+local UIS = game:GetService("UserInputService")
+
+local TweenService = game:GetService("TweenService")
+
+
+
+local Player = Players.LocalPlayer
+
+local PlayerGui = Player:WaitForChild("PlayerGui")
+
+
+
+local BASE = "http://127.0.0.1:3000"
+
+
+
+local requestFn =
+
+    request
+
+    or http_request
+
+    or (syn and syn.request)
+
+
+
+if not requestFn then
+
+    warn("HTTP request não disponível.")
+
+    return
+
+end
+
+
+
+-- =========================================================
+
+-- HTTP
+
+-- =========================================================
+
+
+
+local function api(path, method, body)
+
+    local options = {
+
+        Url = BASE .. path,
+
+        Method = method or "GET",
+
+        Headers = {
+
+            ["Content-Type"] = "application/json"
+
+        }
+
+    }
+
+
+
+    if body ~= nil then
+
+        options.Body = HttpService:JSONEncode(body)
+
+    end
+
+
+
+    local ok, response = pcall(function()
+
+        return requestFn(options)
+
+    end)
+
+
+
+    if not ok then
+
+        return nil, tostring(response)
+
+    end
+
+
+
+    if not response then
+
+        return nil, "Sem resposta do Bridge"
+
+    end
+
+
+
+    local statusCode =
+
+        response.StatusCode
+
+        or response.Status
+
+        or response.status_code
+
+
+
+    local responseBody =
+
+        response.Body
+
+        or response.body
+
+        or ""
+
+
+
+    if statusCode and (statusCode < 200 or statusCode >= 300) then
+
+        return nil, responseBody ~= "" and responseBody or ("HTTP " .. tostring(statusCode))
+
+    end
+
+
+
+    if responseBody == "" then
+
+        return {}
+
+    end
+
+
+
+    local decodeOK, data = pcall(function()
+
+        return HttpService:JSONDecode(responseBody)
+
+    end)
+
+
+
+    if not decodeOK then
+
+        return nil, "JSON inválido recebido do Bridge"
+
+    end
+
+
+
+    return data
+
+end
+
+
+
+-- =========================================================
+
+-- REMOVE GUI ANTIGA
+
+-- =========================================================
+
+
+
+for _, name in ipairs({
+
+    "SpotifyMini",
+
+    "SpotifyMiniDock",
+
+    "SpotifyMinimal",
+
+    "SpotifyFull"
+
+}) do
+
+    local old = PlayerGui:FindFirstChild(name)
+
+
+
+    if old then
+
+        old:Destroy()
+
+    end
+
+end
+
+
+
+-- =========================================================
+
+-- CORES
+
+-- =========================================================
+
+
+
+local C = {
+
+    bg = Color3.fromRGB(10, 10, 10),
+
+    panel = Color3.fromRGB(16, 16, 16),
+
+    button = Color3.fromRGB(23, 23, 23),
+
+    hover = Color3.fromRGB(34, 34, 34),
+
+
+
+    text = Color3.fromRGB(245, 245, 245),
+
+    sub = Color3.fromRGB(158, 158, 158),
+
+
+
+    green = Color3.fromRGB(30, 215, 96),
+
+    red = Color3.fromRGB(225, 70, 70),
+
+
+
+    progressBG = Color3.fromRGB(62, 62, 62)
+
+}
+
+
+
+-- =========================================================
+
+-- HELPERS
+
+-- =========================================================
+
+
+
+local function corner(parent, radius)
+
+    local c = Instance.new("UICorner")
+
+    c.CornerRadius = UDim.new(0, radius or 8)
+
+    c.Parent = parent
+
+    return c
+
+end
+
+
+
+local function tween(object, properties, duration)
+
+    TweenService:Create(
+
+        object,
+
+        TweenInfo.new(
+
+            duration or 0.15,
+
+            Enum.EasingStyle.Quad,
+
+            Enum.EasingDirection.Out
+
+        ),
+
+        properties
+
+    ):Play()
+
+end
+
+
+
+local function createLabel(parent, text, position, size, textSize, color, bold)
+
+    local label = Instance.new("TextLabel")
+
+
+
+    label.Parent = parent
+
+    label.BackgroundTransparency = 1
+
+
+
+    label.Position = position
+
+    label.Size = size
+
+
+
+    label.Text = tostring(text or "")
+
+    label.TextColor3 = color or C.text
+
+    label.TextSize = textSize or 12
+
+
+
+    label.Font =
+
+        bold
+
+        and Enum.Font.GothamBold
+
+        or Enum.Font.Gotham
+
+
+
+    label.TextXAlignment = Enum.TextXAlignment.Left
+
+    label.TextYAlignment = Enum.TextYAlignment.Center
+
+    label.TextTruncate = Enum.TextTruncate.AtEnd
+
+
+
+    return label
+
+end
+
+
+
+local function createButton(parent, text, position, size, callback)
+
+    local button = Instance.new("TextButton")
+
+
+
+    button.Parent = parent
+
+    button.Position = position
+
+    button.Size = size
+
+
+
+    button.BackgroundColor3 = C.button
+
+    button.BorderSizePixel = 0
+
+
+
+    button.Text = text
+
+    button.TextColor3 = C.text
+
+    button.TextSize = 15
+
+    button.Font = Enum.Font.GothamBold
+
+
+
+    button.AutoButtonColor = false
+
+
+
+    corner(button, 7)
+
+
+
+    button.MouseEnter:Connect(function()
+
+        tween(button, {
+
+            BackgroundColor3 = C.hover
+
+        }, 0.1)
+
+    end)
+
+
+
+    button.MouseLeave:Connect(function()
+
+        tween(button, {
+
+            BackgroundColor3 = C.button
+
+        }, 0.1)
+
+    end)
+
+
+
+    if callback then
+
+        button.MouseButton1Click:Connect(function()
+
+            local success, err = pcall(callback)
+
+
+
+            if not success then
+
+                warn(err)
+
+            end
+
+        end)
+
+    end
+
+
+
+    return button
+
+end
+
+
+
+local function formatTime(ms)
+
+    ms = tonumber(ms) or 0
+
+
+
+    local secondsTotal =
+
+        math.max(
+
+            0,
+
+            math.floor(ms / 1000)
+
+        )
+
+
+
+    local minutes =
+
+        math.floor(secondsTotal / 60)
+
+
+
+    local seconds =
+
+        secondsTotal % 60
+
+
+
+    return string.format(
+
+        "%d:%02d",
+
+        minutes,
+
+        seconds
+
+    )
+
+end
+
+
+
+-- =========================================================
+
+-- GUI
+
+-- =========================================================
+
+
+
+local gui = Instance.new("ScreenGui")
+
+
+
+gui.Name = "SpotifyMini"
+
+gui.ResetOnSpawn = false
+
+gui.Parent = PlayerGui
+
+
+
+local holder = Instance.new("Frame")
+
+
+
+holder.Parent = gui
+
+
+
+holder.Size = UDim2.fromOffset(
+
+    400,
+
+    440
+
+)
+
+
+
+holder.Position = UDim2.new(
+
+    0,
+
+    24,
+
+    1,
+
+    -460
+
+)
+
+
+
+holder.BackgroundTransparency = 1
+
+
+
+-- =========================================================
+
+-- MINI PLAYER
+
+-- =========================================================
+
+
+
+local dock = Instance.new("Frame")
+
+
+
+dock.Parent = holder
+
+
+
+dock.Position = UDim2.fromOffset(
+
+    0,
+
+    365
+
+)
+
+
+
+dock.Size = UDim2.fromOffset(
+
+    270,
+
+    66
+
+)
+
+
+
+dock.BackgroundColor3 = C.bg
+
+dock.BorderSizePixel = 0
+
+
+
+corner(dock, 10)
+
+
+
+local dockStroke = Instance.new("UIStroke")
+
+
+
+dockStroke.Parent = dock
+
+dockStroke.Color = Color3.fromRGB(40, 40, 40)
+
+dockStroke.Thickness = 1
+
+dockStroke.Transparency = 0.2
+
+
+
+-- =========================================================
+
+-- CAPA ATUAL
+
+-- =========================================================
+
+
+
+local cover = Instance.new("ImageLabel")
+
+
+
+cover.Parent = dock
+
+
+
+cover.Position = UDim2.fromOffset(
+
+    6,
+
+    6
+
+)
+
+
+
+cover.Size = UDim2.fromOffset(
+
+    52,
+
+    52
+
+)
+
+
+
+cover.BackgroundColor3 = C.button
+
+cover.BorderSizePixel = 0
+
+
+
+cover.Image = ""
+
+cover.ScaleType = Enum.ScaleType.Crop
+
+cover.Active = true
+
+
+
+corner(cover, 7)
+
+
+
+-- =========================================================
+
+-- TEMPOS + PROGRESSO
+
+-- =========================================================
+
+
+
+local currentTimeLabel =
+
+    createLabel(
+
+        dock,
+
+        "0:00",
+
+        UDim2.fromOffset(65, 45),
+
+        UDim2.fromOffset(30, 14),
+
+        8,
+
+        C.sub,
+
+        false
+
+    )
+
+
+
+currentTimeLabel.TextXAlignment =
+
+    Enum.TextXAlignment.Right
+
+
+
+local progressBackground =
+
+    Instance.new("Frame")
+
+
+
+progressBackground.Parent = dock
+
+
+
+progressBackground.Position =
+
+    UDim2.fromOffset(
+
+        100,
+
+        50
+
+    )
+
+
+
+progressBackground.Size =
+
+    UDim2.fromOffset(
+
+        115,
+
+        4
+
+    )
+
+
+
+progressBackground.BackgroundColor3 =
+
+    C.progressBG
+
+
+
+progressBackground.BorderSizePixel = 0
+
+
+
+corner(progressBackground, 4)
+
+
+
+local progressFill =
+
+    Instance.new("Frame")
+
+
+
+progressFill.Parent =
+
+    progressBackground
+
+
+
+progressFill.Size =
+
+    UDim2.new(
+
+        0,
+
+        0,
+
+        1,
+
+        0
+
+    )
+
+
+
+progressFill.BackgroundColor3 =
+
+    C.green
+
+
+
+progressFill.BorderSizePixel = 0
+
+
+
+corner(progressFill, 4)
+
+
+
+local durationTimeLabel =
+
+    createLabel(
+
+        dock,
+
+        "0:00",
+
+        UDim2.fromOffset(220, 45),
+
+        UDim2.fromOffset(38, 14),
+
+        8,
+
+        C.sub,
+
+        false
+
+    )
+
+
+
+
+-- =========================================================
+-- VOLUME VERTICAL (ADICIONADO)
+-- =========================================================
+
+local volumePercent = 50
+local volumeDragging = false
+local volumeLastSend = 0
+
+local volumeHitbox = Instance.new("Frame")
+volumeHitbox.Parent = dock
+volumeHitbox.Position = UDim2.fromOffset(253, 6)
+volumeHitbox.Size = UDim2.fromOffset(15, 52)
+volumeHitbox.BackgroundTransparency = 1
+volumeHitbox.BorderSizePixel = 0
+volumeHitbox.Active = true
+
+local volumeTrack = Instance.new("Frame")
+volumeTrack.Parent = volumeHitbox
+volumeTrack.AnchorPoint = Vector2.new(0.5, 0)
+volumeTrack.Position = UDim2.new(0.5, 0, 0, 0)
+volumeTrack.Size = UDim2.fromOffset(4, 52)
+volumeTrack.BackgroundColor3 = Color3.fromRGB(48, 48, 48)
+volumeTrack.BorderSizePixel = 0
+corner(volumeTrack, 999)
+
+local volumeFill = Instance.new("Frame")
+volumeFill.Parent = volumeTrack
+volumeFill.AnchorPoint = Vector2.new(0, 1)
+volumeFill.Position = UDim2.new(0, 0, 1, 0)
+volumeFill.Size = UDim2.new(1, 0, 0.5, 0)
+volumeFill.BackgroundColor3 = Color3.fromRGB(255, 55, 55)
+volumeFill.BorderSizePixel = 0
+corner(volumeFill, 999)
+
+local function setVolumeBar(percent)
+    percent = math.clamp(tonumber(percent) or 0, 0, 100)
+    volumePercent = percent
+    volumeFill.Size = UDim2.new(1, 0, percent / 100, 0)
+end
+
+local function volumeFromY(y)
+    local top = volumeTrack.AbsolutePosition.Y
+    local height = volumeTrack.AbsoluteSize.Y
+
+    if height <= 0 then
+        return volumePercent
+    end
+
+    local value = 1 - ((y - top) / height)
+    return math.clamp(value * 100, 0, 100)
+end
+
+local function sendVolume(percent, force)
+    percent = math.clamp(math.floor((tonumber(percent) or 0) + 0.5), 0, 100)
+    setVolumeBar(percent)
+
+    local now = os.clock()
+    if not force and (now - volumeLastSend) < 0.08 then
+        return
+    end
+
+    volumeLastSend = now
+
+    task.spawn(function()
+        local _, err = api("/volume", "POST", {
+            volume_percent = percent
+        })
+
+        if err then
+            warn("Erro ao alterar volume:", err)
+        end
+    end)
+end
+
+volumeHitbox.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        volumeDragging = true
+        sendVolume(volumeFromY(input.Position.Y), true)
+    end
+end)
+
+UIS.InputChanged:Connect(function(input)
+    if volumeDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        sendVolume(volumeFromY(input.Position.Y), false)
+    end
+end)
+
+UIS.InputEnded:Connect(function(input)
+    if volumeDragging and input.UserInputType == Enum.UserInputType.MouseButton1 then
+        volumeDragging = false
+        sendVolume(volumePercent, true)
+    end
+end)
+
+-- =========================================================
+
+-- ESTADO
+
+-- =========================================================
+
+
+
+local playing = false
+
+
+
+local currentProgress = 0
+
+local currentDuration = 0
+
+
+
+local syncClock = os.clock()
+
+
+
+local currentTrackID = nil
+
+local currentCoverURL = nil
+
+
+
+local playPauseBusy = false
+
+-- Controle de seek pela barra de progresso.
+local seekDragging = false
+local seekTargetProgress = 0
+
+
+
+local syncCurrentTrack
+
+-- Fila local usada quando uma musica e escolhida pela busca/playlist.
+-- Isso garante que os botoes anterior/proxima realmente troquem de faixa
+-- mesmo quando o Spotify recebeu apenas uma URI isolada em /play.
+local activeQueue = {}
+local activeQueueIndex = nil
+local playTrack
+
+
+
+-- =========================================================
+
+-- CAPAS REMOTAS
+
+-- =========================================================
+
+
+
+local getAsset =
+
+    getcustomasset
+
+    or getsynasset
+
+    or (syn and syn.getcustomasset)
+
+
+
+local imageCache = {}
+
+
+
+local function loadRemoteImage(url, callback)
+
+    if not url or url == "" then
+
+        callback("")
+
+        return
+
+    end
+
+
+
+    if imageCache[url] then
+
+        callback(imageCache[url])
+
+        return
+
+    end
+
+
+
+    if not writefile or not getAsset then
+
+        return
+
+    end
+
+
+
+    task.spawn(function()
+
+        local ok, response = pcall(function()
+
+            return requestFn({
+
+                Url = url,
+
+                Method = "GET"
+
+            })
+
+        end)
+
+
+
+        if not ok or not response then
+
+            return
+
+        end
+
+
+
+        local body =
+
+            response.Body
+
+            or response.body
+
+
+
+        if not body then
+
+            return
+
+        end
+
+
+
+        local filename =
+
+            "spotify_"
+
+            .. HttpService:GenerateGUID(false)
+
+            :gsub("-", "")
+
+            .. ".jpg"
+
+
+
+        local writeOK = pcall(function()
+
+            writefile(filename, body)
+
+        end)
+
+
+
+        if not writeOK then
+
+            return
+
+        end
+
+
+
+        local assetOK, asset =
+
+            pcall(function()
+
+                return getAsset(filename)
+
+            end)
+
+
+
+        if not assetOK or not asset then
+
+            return
+
+        end
+
+
+
+        imageCache[url] = asset
+
+
+
+        callback(asset)
+
+    end)
+
+end
+
+
+
+local function setCurrentCover(url)
+
+    if not url or url == "" then
+
+        cover.Image = ""
+
+        return
+
+    end
+
+
+
+    currentCoverURL = url
+
+
+
+    loadRemoteImage(url, function(asset)
+
+        if currentCoverURL == url then
+
+            cover.Image = asset
+
+        end
+
+    end)
+
+end
+
+
+
+-- =========================================================
+
+-- ANTERIOR
+
+-- =========================================================
+
+
+
+local previousButton =
+
+    createButton(
+
+        dock,
+
+        "<",
+
+        UDim2.fromOffset(67, 7),
+
+        UDim2.fromOffset(38, 32),
+
+
+
+        function()
+
+            -- Se a musica foi escolhida de uma lista do proprio GUI,
+            -- toca diretamente a faixa anterior dessa lista.
+            if activeQueueIndex and activeQueue[activeQueueIndex - 1] and playTrack then
+                playTrack(activeQueue[activeQueueIndex - 1])
+                return
+            end
+
+            -- Caso contrario, usa o contexto/queue atual do Spotify.
+            local result, err =
+
+                api(
+
+                    "/previous",
+
+                    "POST",
+
+                    {}
+
+                )
+
+
+
+            if result == nil then
+
+                warn(
+
+                    "Erro ao voltar:",
+
+                    err
+
+                )
+
+
+
+                return
+
+            end
+
+
+
+            currentProgress = 0
+
+            syncClock = os.clock()
+
+
+
+            task.wait(0.5)
+
+
+
+            pcall(syncCurrentTrack)
+
+        end
+
+    )
+
+
+
+-- =========================================================
+
+-- PLAY / PAUSE
+
+-- =========================================================
+
+
+
+local playPauseButton
+
+
+
+playPauseButton =
+
+    createButton(
+
+        dock,
+
+        "▶",
+
+        UDim2.fromOffset(110, 7),
+
+        UDim2.fromOffset(44, 32),
+
+
+
+        function()
+
+            if playPauseBusy then
+
+                return
+
+            end
+
+
+
+            playPauseBusy = true
+
+
+
+            local current, err =
+
+                api("/current")
+
+
+
+            if not current then
+
+                warn(err)
+
+                playPauseBusy = false
+
+                return
+
+            end
+
+
+
+            local isPlaying =
+
+                current.is_playing == true
+
+
+
+            currentProgress =
+
+                tonumber(
+
+                    current.progress_ms
+
+                )
+
+                or currentProgress
+
+
+
+            currentDuration =
+
+                tonumber(
+
+                    current.duration_ms
+
+                )
+
+                or currentDuration
+
+
+
+            syncClock = os.clock()
+
+
+
+            if isPlaying then
+
+                local result, pauseErr =
+
+                    api(
+
+                        "/pause",
+
+                        "POST"
+
+                    )
+
+
+
+                if result ~= nil then
+
+                    playing = false
+
+                    playPauseButton.Text = "▶"
+
+                else
+
+                    warn(pauseErr)
+
+                end
+
+            else
+
+                local result, playErr =
+
+                    api(
+
+                        "/play",
+
+                        "POST"
+
+                    )
+
+
+
+                if result ~= nil then
+
+                    playing = true
+
+                    playPauseButton.Text = "II"
+
+                    syncClock = os.clock()
+
+                else
+
+                    warn(playErr)
+
+                end
+
+            end
+
+
+
+            task.wait(0.6)
+
+
+
+            pcall(syncCurrentTrack)
+
+
+
+            playPauseBusy = false
+
+        end
+
+    )
+
+
+
+-- =========================================================
+
+-- PRÓXIMA
+
+-- =========================================================
+
+
+
+local nextButton =
+
+    createButton(
+
+        dock,
+
+        ">>",
+
+        UDim2.fromOffset(159, 7),
+
+        UDim2.fromOffset(38, 32),
+
+
+
+        function()
+
+            -- Quando a musica foi escolhida pela busca/playlist do GUI,
+            -- /play recebeu uma URI isolada. Nesse caso o Spotify pode nao
+            -- ter uma proxima faixa no contexto. Entao tocamos a proxima
+            -- faixa da lista local diretamente.
+            if activeQueueIndex and activeQueue[activeQueueIndex + 1] and playTrack then
+                playTrack(activeQueue[activeQueueIndex + 1])
+                return
+            end
+
+            -- Para albums/contextos normais, usa o comando de skip do Spotify.
+            local result, err =
+
+                api(
+
+                    "/next",
+
+                    "POST",
+
+                    {}
+
+                )
+
+
+
+            if result == nil then
+
+                warn("Erro ao pular:", err)
+
+                return
+
+            end
+
+
+
+            currentProgress = 0
+
+            syncClock = os.clock()
+
+
+
+            task.wait(0.5)
+
+
+
+            pcall(syncCurrentTrack)
+
+        end
+
+    )
+
+
+
+-- =========================================================
+
+-- PAINEL EXPANDIDO
+
+-- =========================================================
+
+
+
+local panel =
+
+    Instance.new("Frame")
+
+
+
+panel.Parent = holder
+
+
+
+panel.Position =
+
+    UDim2.fromOffset(
+
+        0,
+
+        0
+
+    )
+
+
+
+panel.Size =
+
+    UDim2.fromOffset(
+
+        380,
+
+        350
+
+    )
+
+
+
+panel.BackgroundColor3 = C.bg
+
+panel.BorderSizePixel = 0
+
+
+
+panel.Visible = false
+
+panel.ClipsDescendants = true
+
+
+
+corner(panel, 12)
+
+
+
+local panelStroke =
+
+    Instance.new("UIStroke")
+
+
+
+panelStroke.Parent = panel
+
+
+
+panelStroke.Color =
+
+    Color3.fromRGB(
+
+        40,
+
+        40,
+
+        40
+
+    )
+
+
+
+panelStroke.Thickness = 1
+
+panelStroke.Transparency = 0.2
+
+
+
+-- =========================================================
+
+-- BOTÃO +
+
+-- =========================================================
+
+
+
+local menuOpen = false
+
+local menuButton
+
+
+
+menuButton =
+
+    createButton(
+
+        dock,
+
+        "+",
+
+        UDim2.fromOffset(202, 7),
+
+        UDim2.fromOffset(38, 32),
+
+
+
+        function()
+
+            menuOpen =
+
+                not menuOpen
+
+
+
+            if menuOpen then
+
+                panel.Visible = true
+
+
+
+                panel.Size =
+
+                    UDim2.fromOffset(
+
+                        380,
+
+                        0
+
+                    )
+
+
+
+                tween(
+
+                    panel,
+
+                    {
+
+                        Size =
+
+                            UDim2.fromOffset(
+
+                                380,
+
+                                350
+
+                            )
+
+                    },
+
+                    0.18
+
+                )
+
+
+
+                menuButton.Text = "-"
+
+            else
+
+                tween(
+
+                    panel,
+
+                    {
+
+                        Size =
+
+                            UDim2.fromOffset(
+
+                                380,
+
+                                0
+
+                            )
+
+                    },
+
+                    0.15
+
+                )
+
+
+
+                menuButton.Text = "+"
+
+
+
+                task.delay(0.15, function()
+
+                    if not menuOpen then
+
+                        panel.Visible = false
+
+                    end
+
+                end)
+
+            end
+
+        end
+
+    )
+
+
+
+-- =========================================================
+
+-- TÍTULO / STATUS
+
+-- =========================================================
+
+
+
+createLabel(
+
+    panel,
+
+    "Spotify",
+
+    UDim2.fromOffset(14, 8),
+
+    UDim2.fromOffset(120, 24),
+
+    16,
+
+    C.text,
+
+    true
+
+)
+
+
+
+local statusDot =
+
+    Instance.new("Frame")
+
+
+
+statusDot.Parent = panel
+
+
+
+statusDot.Position =
+
+    UDim2.fromOffset(
+
+        15,
+
+        34
+
+    )
+
+
+
+statusDot.Size =
+
+    UDim2.fromOffset(
+
+        6,
+
+        6
+
+    )
+
+
+
+statusDot.BackgroundColor3 = C.sub
+
+statusDot.BorderSizePixel = 0
+
+
+
+corner(statusDot, 10)
+
+
+
+local statusText =
+
+    createLabel(
+
+        panel,
+
+        "Conectando",
+
+        UDim2.fromOffset(27, 29),
+
+        UDim2.fromOffset(170, 16),
+
+        10,
+
+        C.sub,
+
+        false
+
+    )
+
+
+
+-- =========================================================
+
+-- BARRA DE PESQUISA
+
+-- =========================================================
+
+
+
+local searchContainer =
+
+    Instance.new("Frame")
+
+
+
+searchContainer.Parent =
+
+    panel
+
+
+
+searchContainer.Position =
+
+    UDim2.fromOffset(
+
+        12,
+
+        53
+
+    )
+
+
+
+searchContainer.Size =
+
+    UDim2.fromOffset(
+
+        356,
+
+        40
+
+    )
+
+
+
+searchContainer.BackgroundColor3 =
+
+    C.button
+
+
+
+searchContainer.BorderSizePixel =
+
+    0
+
+
+
+corner(
+
+    searchContainer,
+
+    9
+
+)
+
+
+
+local searchIcon =
+
+    createLabel(
+
+        searchContainer,
+
+        "Q",
+
+        UDim2.fromOffset(12, 7),
+
+        UDim2.fromOffset(24, 26),
+
+        15,
+
+        C.sub,
+
+        true
+
+    )
+
+
+
+local searchBox =
+
+    Instance.new("TextBox")
+
+
+
+searchBox.Parent =
+
+    searchContainer
+
+
+
+searchBox.Position =
+
+    UDim2.fromOffset(
+
+        39,
+
+        4
+
+    )
+
+
+
+searchBox.Size =
+
+    UDim2.new(
+
+        1,
+
+        -104,
+
+        1,
+
+        -8
+
+    )
+
+
+
+searchBox.BackgroundTransparency =
+
+    1
+
+
+
+searchBox.PlaceholderText =
+
+    "O que você quer ouvir?"
+
+
+
+searchBox.PlaceholderColor3 =
+
+    C.sub
+
+
+
+searchBox.Text =
+
+    ""
+
+
+
+searchBox.TextColor3 =
+
+    C.text
+
+
+
+searchBox.TextSize =
+
+    12
+
+
+
+searchBox.Font =
+
+    Enum.Font.Gotham
+
+
+
+searchBox.TextXAlignment =
+
+    Enum.TextXAlignment.Left
+
+
+
+searchBox.ClearTextOnFocus =
+
+    false
+
+
+
+local searchButton =
+
+    Instance.new("TextButton")
+
+
+
+searchButton.Parent =
+
+    searchContainer
+
+
+
+searchButton.Position =
+
+    UDim2.new(
+
+        1,
+
+        -61,
+
+        0,
+
+        5
+
+    )
+
+
+
+searchButton.Size =
+
+    UDim2.fromOffset(
+
+        55,
+
+        30
+
+    )
+
+
+
+searchButton.BackgroundColor3 =
+
+    C.green
+
+
+
+searchButton.BorderSizePixel =
+
+    0
+
+
+
+searchButton.Text =
+
+    "Buscar"
+
+
+
+searchButton.TextColor3 =
+
+    Color3.fromRGB(
+
+        10,
+
+        10,
+
+        10
+
+    )
+
+
+
+searchButton.TextSize =
+
+    10
+
+
+
+searchButton.Font =
+
+    Enum.Font.GothamBold
+
+
+
+corner(
+
+    searchButton,
+
+    7
+
+)
+
+
+
+-- =========================================================
+
+-- TABS
+
+-- =========================================================
+
+
+
+local tabs =
+
+    Instance.new("Frame")
+
+
+
+tabs.Parent =
+
+    panel
+
+
+
+tabs.Position =
+
+    UDim2.fromOffset(
+
+        12,
+
+        101
+
+    )
+
+
+
+tabs.Size =
+
+    UDim2.new(
+
+        1,
+
+        -24,
+
+        0,
+
+        30
+
+    )
+
+
+
+tabs.BackgroundTransparency =
+
+    1
+
+
+
+local tabsLayout =
+
+    Instance.new("UIListLayout")
+
+
+
+tabsLayout.Parent =
+
+    tabs
+
+
+
+tabsLayout.FillDirection =
+
+    Enum.FillDirection.Horizontal
+
+
+
+tabsLayout.Padding =
+
+    UDim.new(
+
+        0,
+
+        5
+
+    )
+
+
+
+-- =========================================================
+
+-- LISTA
+
+-- =========================================================
+
+
+
+local content =
+
+    Instance.new("ScrollingFrame")
+
+
+
+content.Parent =
+
+    panel
+
+
+
+content.Position =
+
+    UDim2.fromOffset(
+
+        12,
+
+        139
+
+    )
+
+
+
+content.Size =
+
+    UDim2.new(
+
+        1,
+
+        -24,
+
+        1,
+
+        -151
+
+    )
+
+
+
+content.BackgroundColor3 =
+
+    C.panel
+
+
+
+content.BorderSizePixel =
+
+    0
+
+
+
+content.ScrollBarThickness =
+
+    3
+
+
+
+content.ScrollBarImageColor3 =
+
+    Color3.fromRGB(
+
+        80,
+
+        80,
+
+        80
+
+    )
+
+
+
+content.AutomaticCanvasSize =
+
+    Enum.AutomaticSize.Y
+
+
+
+content.CanvasSize =
+
+    UDim2.new()
+
+
+
+corner(
+
+    content,
+
+    8
+
+)
+
+
+
+local layout =
+
+    Instance.new("UIListLayout")
+
+
+
+layout.Parent =
+
+    content
+
+
+
+layout.Padding =
+
+    UDim.new(
+
+        0,
+
+        4
+
+    )
+
+
+
+local padding =
+
+    Instance.new("UIPadding")
+
+
+
+padding.Parent =
+
+    content
+
+
+
+padding.PaddingTop =
+
+    UDim.new(0, 6)
+
+
+
+padding.PaddingBottom =
+
+    UDim.new(0, 6)
+
+
+
+padding.PaddingLeft =
+
+    UDim.new(0, 6)
+
+
+
+padding.PaddingRight =
+
+    UDim.new(0, 6)
+
+
+
+local function clearContent()
+
+    for _, child in ipairs(content:GetChildren()) do
+
+        if
+
+            not child:IsA("UIListLayout")
+
+            and not child:IsA("UIPadding")
+
+        then
+
+            child:Destroy()
+
+        end
+
+    end
+
+end
+
+
+
+local function createHeader(title, subtitle)
+
+    local holder2 =
+
+        Instance.new("Frame")
+
+
+
+    holder2.Parent =
+
+        content
+
+
+
+    holder2.Size =
+
+        UDim2.new(
+
+            1,
+
+            0,
+
+            0,
+
+            43
+
+        )
+
+
+
+    holder2.BackgroundTransparency =
+
+        1
+
+
+
+    createLabel(
+
+        holder2,
+
+        title,
+
+        UDim2.fromOffset(7, 1),
+
+        UDim2.new(1, -14, 0, 20),
+
+        13,
+
+        C.text,
+
+        true
+
+    )
+
+
+
+    createLabel(
+
+        holder2,
+
+        subtitle or "",
+
+        UDim2.fromOffset(7, 22),
+
+        UDim2.new(1, -14, 0, 16),
+
+        10,
+
+        C.sub,
+
+        false
+
+    )
+
+end
+
+
+
+-- =========================================================
+
+-- RESULTADO COM CAPA
+
+-- =========================================================
+
+
+
+local function createTrackRow(track, callback)
+
+    local row =
+
+        Instance.new("TextButton")
+
+
+
+    row.Parent =
+
+        content
+
+
+
+    row.Size =
+
+        UDim2.new(
+
+            1,
+
+            0,
+
+            0,
+
+            58
+
+        )
+
+
+
+    row.BackgroundColor3 =
+
+        C.button
+
+
+
+    row.BorderSizePixel =
+
+        0
+
+
+
+    row.Text =
+
+        ""
+
+
+
+    row.AutoButtonColor =
+
+        false
+
+
+
+    corner(
+
+        row,
+
+        7
+
+    )
+
+
+
+    local thumb =
+
+        Instance.new("ImageLabel")
+
+
+
+    thumb.Parent =
+
+        row
+
+
+
+    thumb.Position =
+
+        UDim2.fromOffset(
+
+            6,
+
+            6
+
+        )
+
+
+
+    thumb.Size =
+
+        UDim2.fromOffset(
+
+            46,
+
+            46
+
+        )
+
+
+
+    thumb.BackgroundColor3 =
+
+        C.panel
+
+
+
+    thumb.BorderSizePixel =
+
+        0
+
+
+
+    thumb.Image =
+
+        ""
+
+
+
+    thumb.ScaleType =
+
+        Enum.ScaleType.Crop
+
+
+
+    corner(
+
+        thumb,
+
+        6
+
+    )
+
+
+
+    createLabel(
+
+        row,
+
+        track.name or "Sem nome",
+
+        UDim2.fromOffset(61, 7),
+
+        UDim2.new(1, -70, 0, 20),
+
+        12,
+
+        C.text,
+
+        true
+
+    )
+
+
+
+    local description =
+
+        track.artist
+
+        or "Artista"
+
+
+
+    if track.album and track.album ~= "" then
+
+        description =
+
+            description
+
+            .. " • "
+
+            .. track.album
+
+    end
+
+
+
+    createLabel(
+
+        row,
+
+        description,
+
+        UDim2.fromOffset(61, 29),
+
+        UDim2.new(1, -70, 0, 17),
+
+        10,
+
+        C.sub,
+
+        false
+
+    )
+
+
+
+    if track.cover then
+
+        loadRemoteImage(
+
+            track.cover,
+
+
+
+            function(asset)
+
+                if thumb.Parent then
+
+                    thumb.Image = asset
+
+                end
+
+            end
+
+        )
+
+    end
+
+
+
+    row.MouseEnter:Connect(function()
+
+        tween(
+
+            row,
+
+            {
+
+                BackgroundColor3 =
+
+                    C.hover
+
+            },
+
+            0.1
+
+        )
+
+    end)
+
+
+
+    row.MouseLeave:Connect(function()
+
+        tween(
+
+            row,
+
+            {
+
+                BackgroundColor3 =
+
+                    C.button
+
+            },
+
+            0.1
+
+        )
+
+    end)
+
+
+
+    if callback then
+
+        row.MouseButton1Click:Connect(
+
+            callback
+
+        )
+
+    end
+
+end
+
+
+
+local function createSimpleRow(name, subtitle, callback)
+
+    local row =
+
+        Instance.new("TextButton")
+
+
+
+    row.Parent =
+
+        content
+
+
+
+    row.Size =
+
+        UDim2.new(
+
+            1,
+
+            0,
+
+            0,
+
+            48
+
+        )
+
+
+
+    row.BackgroundColor3 =
+
+        C.button
+
+
+
+    row.BorderSizePixel =
+
+        0
+
+
+
+    row.Text =
+
+        ""
+
+
+
+    row.AutoButtonColor =
+
+        false
+
+
+
+    corner(
+
+        row,
+
+        7
+
+    )
+
+
+
+    createLabel(
+
+        row,
+
+        name,
+
+        UDim2.fromOffset(10, 5),
+
+        UDim2.new(1, -20, 0, 20),
+
+        12,
+
+        C.text,
+
+        true
+
+    )
+
+
+
+    createLabel(
+
+        row,
+
+        subtitle or "",
+
+        UDim2.fromOffset(10, 27),
+
+        UDim2.new(1, -20, 0, 15),
+
+        10,
+
+        C.sub,
+
+        false
+
+    )
+
+
+
+    row.MouseEnter:Connect(function()
+
+        tween(
+
+            row,
+
+            {
+
+                BackgroundColor3 =
+
+                    C.hover
+
+            },
+
+            0.1
+
+        )
+
+    end)
+
+
+
+    row.MouseLeave:Connect(function()
+
+        tween(
+
+            row,
+
+            {
+
+                BackgroundColor3 =
+
+                    C.button
+
+            },
+
+            0.1
+
+        )
+
+    end)
+
+
+
+    if callback then
+
+        row.MouseButton1Click:Connect(
+
+            callback
+
+        )
+
+    end
+
+end
+
+
+
+-- =========================================================
+
+-- TOCAR MÚSICA
+
+-- =========================================================
+
+
+
+playTrack = function(track)
+
+    if not track or not track.uri then
+
+        return
+
+    end
+
+    -- Guarda a posicao da faixa dentro da lista atualmente exibida.
+    -- Isso permite que < e >> naveguem por essa mesma lista.
+    for index, queuedTrack in ipairs(activeQueue) do
+        if queuedTrack == track
+            or (queuedTrack.uri and queuedTrack.uri == track.uri)
+            or (queuedTrack.id and track.id and queuedTrack.id == track.id) then
+            activeQueueIndex = index
+            break
+        end
+    end
+
+
+
+    local result, err =
+
+        api(
+
+            "/play",
+
+            "POST",
+
+            {
+
+                uri = track.uri
+
+            }
+
+        )
+
+
+
+    if result == nil then
+
+        warn(
+
+            "Erro ao tocar:",
+
+            err
+
+        )
+
+        return
+
+    end
+
+
+
+    playing = true
+
+    currentProgress = 0
+
+
+
+    currentDuration =
+
+        tonumber(
+
+            track.duration_ms
+
+        )
+
+        or 0
+
+
+
+    syncClock =
+
+        os.clock()
+
+
+
+    playPauseButton.Text =
+
+        "II"
+
+
+
+    if track.cover then
+
+        setCurrentCover(
+
+            track.cover
+
+        )
+
+    end
+
+
+
+    task.wait(0.5)
+
+
+
+    pcall(
+
+        syncCurrentTrack
+
+    )
+
+end
+
+
+
+-- =========================================================
+
+-- PESQUISA
+
+-- =========================================================
+
+
+
+local searching = false
+
+
+
+local function searchSpotify()
+
+    if searching then
+
+        return
+
+    end
+
+
+
+    local query =
+
+        searchBox.Text:gsub(
+
+            "^%s+",
+
+            ""
+
+        ):gsub(
+
+            "%s+$",
+
+            ""
+
+        )
+
+
+
+    if query == "" then
+
+        return
+
+    end
+
+
+
+    searching = true
+
+
+
+    clearContent()
+
+
+
+    createHeader(
+
+        "Resultados",
+
+        "Buscando por \"" .. query .. "\""
+
+    )
+
+
+
+    local encoded =
+
+        HttpService:UrlEncode(
+
+            query
+
+        )
+
+
+
+    local data, err =
+
+        api(
+
+            "/search?q="
+
+            .. encoded
+
+        )
+
+
+
+    if not data then
+
+        createSimpleRow(
+
+            "Erro na pesquisa",
+
+            tostring(err)
+
+        )
+
+
+
+        searching = false
+
+        return
+
+    end
+
+
+
+    local tracks =
+
+        data.items
+
+        or {}
+
+    activeQueue = tracks
+    activeQueueIndex = nil
+
+
+
+    clearContent()
+
+
+
+    createHeader(
+
+        "Resultados",
+
+        #tracks
+
+        .. " músicas encontradas"
+
+    )
+
+
+
+    if #tracks == 0 then
+
+        createSimpleRow(
+
+            "Nenhum resultado",
+
+            "Tente outro nome de música ou artista"
+
+        )
+
+    else
+
+        for _, track in ipairs(tracks) do
+
+            createTrackRow(
+
+                track,
+
+
+
+                function()
+
+                    playTrack(
+
+                        track
+
+                    )
+
+                end
+
+            )
+
+        end
+
+    end
+
+
+
+    searching = false
+
+end
+
+
+
+searchButton.MouseButton1Click:Connect(
+
+    searchSpotify
+
+)
+
+
+
+searchBox.FocusLost:Connect(
+
+    function(enterPressed)
+
+        if enterPressed then
+
+            searchSpotify()
+
+        end
+
+    end
+
+)
+
+
+
+-- =========================================================
+
+-- MÚSICAS DE PLAYLIST
+
+-- =========================================================
+
+
+
+local function showTracks(path, title)
+
+    clearContent()
+
+
+
+    createHeader(
+
+        title or "Músicas",
+
+        "Clique em uma música para tocar"
+
+    )
+
+
+
+    local data, err =
+
+        api(path)
+
+
+
+    if not data then
+
+        createSimpleRow(
+
+            "Erro",
+
+            tostring(err)
+
+        )
+
+        return
+
+    end
+
+
+
+    local tracks = data.items or {}
+    activeQueue = tracks
+    activeQueueIndex = nil
+
+    for _, track in ipairs(
+
+        tracks
+
+    ) do
+
+        createTrackRow(
+
+            track,
+
+
+
+            function()
+
+                playTrack(
+
+                    track
+
+                )
+
+            end
+
+        )
+
+    end
+
+end
+
+
+
+-- =========================================================
+
+-- PLAYLISTS
+
+-- =========================================================
+
+
+
+local function showPlaylists()
+
+    clearContent()
+
+
+
+    createHeader(
+
+        "Playlists",
+
+        "Suas playlists"
+
+    )
+
+
+
+    local data, err =
+
+        api(
+
+            "/playlists?limit=50"
+
+        )
+
+
+
+    if not data then
+
+        createSimpleRow(
+
+            "Erro",
+
+            tostring(err)
+
+        )
+
+
+
+        return
+
+    end
+
+
+
+    for _, playlist in ipairs(
+
+        data.items or {}
+
+    ) do
+
+        local description =
+
+            tostring(
+
+                playlist.tracks_total
+
+                or playlist.items_total
+
+                or (playlist.items and playlist.items.total)
+
+                or 0
+
+            )
+
+            .. " músicas"
+
+
+
+        if playlist.owner and playlist.owner ~= "" then
+
+            description =
+
+                description
+
+                .. " • "
+
+                .. playlist.owner
+
+        end
+
+
+
+        createSimpleRow(
+
+            playlist.name
+
+                or "Playlist",
+
+
+
+            description,
+
+
+
+            function()
+
+                if playlist.id then
+
+                    showTracks(
+
+                        "/playlist/"
+
+                        .. tostring(
+
+                            playlist.id
+
+                        )
+
+                        .. "/tracks?limit=50",
+
+
+
+                        playlist.name
+
+                            or "Playlist"
+
+                    )
+
+                end
+
+            end
+
+        )
+
+    end
+
+end
+
+
+
+-- =========================================================
+
+-- CURTIDAS
+
+-- =========================================================
+
+
+
+local function showLiked()
+
+    showTracks(
+
+        "/liked?limit=50",
+
+        "Músicas curtidas"
+
+    )
+
+end
+
+
+
+-- =========================================================
+
+-- ÁLBUNS
+
+-- =========================================================
+
+
+
+local function showAlbums()
+
+    clearContent()
+
+
+
+    createHeader(
+
+        "Álbuns",
+
+        "Álbuns salvos"
+
+    )
+
+
+
+    local data, err =
+
+        api(
+
+            "/albums?limit=50"
+
+        )
+
+
+
+    if not data then
+
+        createSimpleRow(
+
+            "Erro",
+
+            tostring(err)
+
+        )
+
+
+
+        return
+
+    end
+
+
+
+    for _, album in ipairs(
+
+        data.items or {}
+
+    ) do
+
+        createSimpleRow(
+
+            album.name
+
+                or "Álbum",
+
+
+
+            (
+
+                album.artist
+
+                or "Artista"
+
+            )
+
+            .. " • "
+
+            .. tostring(
+
+                album.tracks_total
+
+                or 0
+
+            )
+
+            .. " faixas",
+
+
+
+            function()
+
+                if album.uri then
+
+                    activeQueue = {}
+                    activeQueueIndex = nil
+
+                    api(
+
+                        "/play",
+
+                        "POST",
+
+                        {
+
+                            context_uri =
+
+                                album.uri
+
+                        }
+
+                    )
+
+                end
+
+            end
+
+        )
+
+    end
+
+end
+
+
+
+-- =========================================================
+
+-- TABS
+
+-- =========================================================
+
+
+
+local selectedTab = nil
+
+
+
+local function createTab(text, callback)
+
+    local b =
+
+        Instance.new("TextButton")
+
+
+
+    b.Parent =
+
+        tabs
+
+
+
+    b.Size =
+
+        UDim2.fromOffset(
+
+            80,
+
+            30
+
+        )
+
+
+
+    b.BackgroundColor3 =
+
+        C.button
+
+
+
+    b.BorderSizePixel =
+
+        0
+
+
+
+    b.Text =
+
+        text
+
+
+
+    b.TextColor3 =
+
+        C.sub
+
+
+
+    b.TextSize =
+
+        10
+
+
+
+    b.Font =
+
+        Enum.Font.GothamMedium
+
+
+
+    b.AutoButtonColor =
+
+        false
+
+
+
+    corner(
+
+        b,
+
+        7
+
+    )
+
+
+
+    b.MouseButton1Click:Connect(function()
+
+        if selectedTab and selectedTab ~= b then
+
+            selectedTab.BackgroundColor3 =
+
+                C.button
+
+
+
+            selectedTab.TextColor3 =
+
+                C.sub
+
+        end
+
+
+
+        selectedTab =
+
+            b
+
+
+
+        b.BackgroundColor3 =
+
+            C.green
+
+
+
+        b.TextColor3 =
+
+            Color3.fromRGB(
+
+                10,
+
+                10,
+
+                10
+
+            )
+
+
+
+        callback()
+
+    end)
+
+
+
+    return b
+
+end
+
+
+
+local playlistsTab =
+
+    createTab(
+
+        "Playlists",
+
+        showPlaylists
+
+    )
+
+
+
+createTab(
+
+    "Curtidas",
+
+    showLiked
+
+)
+
+
+
+createTab(
+
+    "Álbuns",
+
+    showAlbums
+
+)
+
+
+
+createTab(
+
+    "Limpar",
+
+    function()
+
+        searchBox.Text = ""
+
+        showPlaylists()
+
+    end
+
+)
+
+
+
+selectedTab =
+
+    playlistsTab
+
+
+
+playlistsTab.BackgroundColor3 =
+
+    C.green
+
+
+
+playlistsTab.TextColor3 =
+
+    Color3.fromRGB(
+
+        10,
+
+        10,
+
+        10
+
+    )
+
+
+
+-- =========================================================
+
+-- AVISO DE CONEXÃO / DESCONEXÃO DO BRIDGE
+-- ADICIONADO SEM ALTERAR AS FUNÇÕES EXISTENTES
+
+-- =========================================================
+
+
+
+local SoundService = game:GetService("SoundService")
+
+local Debris = game:GetService("Debris")
+
+
+
+local lastBridgeConnectionState = nil
+
+local bridgePopupSequence = 0
+
+
+
+local bridgePopup = Instance.new("Frame")
+
+bridgePopup.Name = "BridgeConnectionPopup"
+
+bridgePopup.Parent = gui
+
+bridgePopup.AnchorPoint = Vector2.new(0.5, 0)
+
+bridgePopup.Position = UDim2.new(0.5, 0, 0, -50)
+
+bridgePopup.Size = UDim2.fromOffset(176, 38)
+
+bridgePopup.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+
+bridgePopup.BackgroundTransparency = 1
+
+bridgePopup.BorderSizePixel = 0
+
+bridgePopup.ZIndex = 100
+
+bridgePopup.Visible = false
+
+
+
+corner(bridgePopup, 10)
+
+
+
+local bridgePopupStroke = Instance.new("UIStroke")
+
+bridgePopupStroke.Parent = bridgePopup
+
+bridgePopupStroke.Color = Color3.fromRGB(48, 48, 48)
+
+bridgePopupStroke.Thickness = 1
+
+bridgePopupStroke.Transparency = 1
+
+
+
+local bridgePopupAccent = Instance.new("Frame")
+
+bridgePopupAccent.Parent = bridgePopup
+
+bridgePopupAccent.Position = UDim2.fromOffset(7, 8)
+
+bridgePopupAccent.Size = UDim2.fromOffset(4, 22)
+
+bridgePopupAccent.BackgroundColor3 = C.green
+
+bridgePopupAccent.BackgroundTransparency = 1
+
+bridgePopupAccent.BorderSizePixel = 0
+
+bridgePopupAccent.ZIndex = 101
+
+
+
+corner(bridgePopupAccent, 4)
+
+
+
+local bridgePopupDot = Instance.new("Frame")
+
+bridgePopupDot.Parent = bridgePopup
+
+bridgePopupDot.Position = UDim2.fromOffset(20, 15)
+
+bridgePopupDot.Size = UDim2.fromOffset(8, 8)
+
+bridgePopupDot.BackgroundColor3 = C.green
+
+bridgePopupDot.BackgroundTransparency = 1
+
+bridgePopupDot.BorderSizePixel = 0
+
+bridgePopupDot.ZIndex = 101
+
+
+
+corner(bridgePopupDot, 10)
+
+
+
+local bridgePopupText = Instance.new("TextLabel")
+
+bridgePopupText.Parent = bridgePopup
+
+bridgePopupText.BackgroundTransparency = 1
+
+bridgePopupText.Position = UDim2.fromOffset(38, 0)
+
+bridgePopupText.Size = UDim2.new(1, -48, 1, 0)
+
+bridgePopupText.Text = "CONECTADO"
+
+bridgePopupText.TextColor3 = C.text
+
+bridgePopupText.TextTransparency = 1
+
+bridgePopupText.TextSize = 12
+
+bridgePopupText.Font = Enum.Font.GothamBold
+
+bridgePopupText.TextXAlignment = Enum.TextXAlignment.Left
+
+bridgePopupText.TextYAlignment = Enum.TextYAlignment.Center
+
+bridgePopupText.ZIndex = 101
+
+
+
+local function playBridgeConnectionSound(connected)
+
+    local sound = Instance.new("Sound")
+
+    sound.SoundId = "rbxasset://sounds/electronicpingshort.wav"
+
+    sound.Volume = 0.35
+
+    sound.PlaybackSpeed = connected and 1.15 or 0.78
+
+    sound.Parent = SoundService
+
+
+
+    sound:Play()
+
+
+
+    Debris:AddItem(sound, 3)
+
+end
+
+
+
+local function showBridgeConnectionPopup(connected)
+
+    bridgePopupSequence = bridgePopupSequence + 1
+
+
+
+    local thisSequence = bridgePopupSequence
+
+
+
+    local stateColor = connected and C.green or C.red
+
+
+
+    bridgePopupText.Text = connected and "CONECTADO" or "DESCONECTADO"
+
+    bridgePopupAccent.BackgroundColor3 = stateColor
+
+    bridgePopupDot.BackgroundColor3 = stateColor
+
+
+
+    bridgePopup.Visible = true
+
+    bridgePopup.Position = UDim2.new(0.5, 0, 0, -50)
+
+    bridgePopup.BackgroundTransparency = 1
+
+    bridgePopupStroke.Transparency = 1
+
+    bridgePopupAccent.BackgroundTransparency = 1
+
+    bridgePopupDot.BackgroundTransparency = 1
+
+    bridgePopupText.TextTransparency = 1
+
+
+
+    tween(
+
+        bridgePopup,
+
+        {
+
+            Position = UDim2.new(0.5, 0, 0, 20),
+
+            BackgroundTransparency = 0.06
+
+        },
+
+        0.28
+
+    )
+
+
+
+    tween(
+
+        bridgePopupStroke,
+
+        {
+
+            Transparency = 0.25
+
+        },
+
+        0.28
+
+    )
+
+
+
+    tween(
+
+        bridgePopupAccent,
+
+        {
+
+            BackgroundTransparency = 0
+
+        },
+
+        0.28
+
+    )
+
+
+
+    tween(
+
+        bridgePopupDot,
+
+        {
+
+            BackgroundTransparency = 0
+
+        },
+
+        0.28
+
+    )
+
+
+
+    tween(
+
+        bridgePopupText,
+
+        {
+
+            TextTransparency = 0
+
+        },
+
+        0.28
+
+    )
+
+
+
+    playBridgeConnectionSound(connected)
+
+
+
+    task.delay(2.2, function()
+
+        if thisSequence ~= bridgePopupSequence then
+
+            return
+
+        end
+
+
+
+        tween(
+
+            bridgePopup,
+
+            {
+
+                Position = UDim2.new(0.5, 0, 0, -50),
+
+                BackgroundTransparency = 1
+
+            },
+
+            0.28
+
+        )
+
+
+
+        tween(
+
+            bridgePopupStroke,
+
+            {
+
+                Transparency = 1
+
+            },
+
+            0.28
+
+        )
+
+
+
+        tween(
+
+            bridgePopupAccent,
+
+            {
+
+                BackgroundTransparency = 1
+
+            },
+
+            0.28
+
+        )
+
+
+
+        tween(
+
+            bridgePopupDot,
+
+            {
+
+                BackgroundTransparency = 1
+
+            },
+
+            0.28
+
+        )
+
+
+
+        tween(
+
+            bridgePopupText,
+
+            {
+
+                TextTransparency = 1
+
+            },
+
+            0.28
+
+        )
+
+
+
+        task.delay(0.3, function()
+
+            if thisSequence == bridgePopupSequence then
+
+                bridgePopup.Visible = false
+
+            end
+
+        end)
+
+    end)
+
+end
+
+
+
+local function setBridgeConnectionState(connected)
+
+    if lastBridgeConnectionState == connected then
+
+        return
+
+    end
+
+
+
+    lastBridgeConnectionState = connected
+
+
+
+    showBridgeConnectionPopup(connected)
+
+end
+
+
+
+-- =========================================================
+
+-- STATUS
+
+-- =========================================================
+
+
+
+local function updateStatus()
+
+    local data =
+
+        api(
+
+            "/status"
+
+        )
+
+
+
+    if not data then
+
+        statusDot.BackgroundColor3 =
+
+            C.red
+
+
+
+        statusText.Text =
+
+            "Bridge offline"
+
+
+
+        setBridgeConnectionState(false)
+
+
+
+        return
+
+    end
+
+
+
+    if data.authorized == false then
+
+        statusDot.BackgroundColor3 =
+
+            C.red
+
+
+
+        statusText.Text =
+
+            "Não autorizado"
+
+
+
+        setBridgeConnectionState(false)
+
+
+
+        return
+
+    end
+
+
+
+    statusDot.BackgroundColor3 =
+
+        C.green
+
+
+
+    statusText.Text =
+
+        "Conectado"
+
+
+
+    setBridgeConnectionState(true)
+
+end
+
+
+
+-- =========================================================
+
+-- MÚSICA ATUAL
+
+-- =========================================================
+
+
+
+syncCurrentTrack = function()
+
+    local data =
+
+        api(
+
+            "/current"
+
+        )
+
+
+
+    if not data then
+
+        return
+
+    end
+
+
+
+    playing =
+
+        data.is_playing
+
+        == true
+
+
+
+    if not playPauseBusy then
+
+        if playing then
+
+            playPauseButton.Text =
+
+                "II"
+
+        else
+
+            playPauseButton.Text =
+
+                "▶"
+
+        end
+
+    end
+
+
+
+    if not seekDragging then
+        currentProgress =
+
+            tonumber(
+
+                data.progress_ms
+
+            )
+
+            or 0
+
+
+
+        currentDuration =
+
+            tonumber(
+
+                data.duration_ms
+
+            )
+
+            or 0
+
+
+
+        syncClock =
+
+            os.clock()
+    else
+        -- Mantem a duracao atualizada sem puxar a barrinha de volta
+        -- enquanto o usuario esta arrastando.
+        local spotifyDuration = tonumber(data.duration_ms)
+        if spotifyDuration and spotifyDuration > 0 then
+            currentDuration = spotifyDuration
+        end
+    end
+
+
+
+    currentTrackID =
+
+        data.id
+
+        or currentTrackID
+
+    if #activeQueue > 0 then
+        for index, queuedTrack in ipairs(activeQueue) do
+            if (data.id and queuedTrack.id and data.id == queuedTrack.id)
+                or (data.uri and queuedTrack.uri and data.uri == queuedTrack.uri) then
+                activeQueueIndex = index
+                break
+            end
+        end
+    end
+
+
+
+    local newCover =
+
+        data.cover
+
+        or data.cover_url
+
+        or data.image
+
+        or data.album_image
+
+
+
+    if newCover and newCover ~= currentCoverURL then
+
+        setCurrentCover(
+
+            newCover
+
+        )
+
+    end
+
+end
+
+
+
+-- =========================================================
+
+-- SEEK PELA BARRA DE PROGRESSO
+
+-- =========================================================
+
+local progressHitbox = Instance.new("Frame")
+progressHitbox.Name = "ProgressSeekHitbox"
+progressHitbox.Parent = dock
+progressHitbox.Position = UDim2.fromOffset(97, 43)
+progressHitbox.Size = UDim2.fromOffset(121, 18)
+progressHitbox.BackgroundTransparency = 1
+progressHitbox.BorderSizePixel = 0
+progressHitbox.Active = true
+progressHitbox.ZIndex = 30
+
+local function seekProgressFromX(x)
+    if currentDuration <= 0 then
+        return 0
+    end
+
+    local left = progressBackground.AbsolutePosition.X
+    local width = progressBackground.AbsoluteSize.X
+
+    if width <= 0 then
+        return currentProgress
+    end
+
+    local percent = math.clamp((x - left) / width, 0, 1)
+    return math.floor((currentDuration * percent) + 0.5)
+end
+
+local function previewSeek(x)
+    if currentDuration <= 0 then
+        return
+    end
+
+    seekTargetProgress = seekProgressFromX(x)
+    currentProgress = seekTargetProgress
+    syncClock = os.clock()
+
+    local percent = math.clamp(seekTargetProgress / currentDuration, 0, 1)
+    progressFill.Size = UDim2.new(percent, 0, 1, 0)
+    currentTimeLabel.Text = formatTime(seekTargetProgress)
+end
+
+local function commitSeek()
+    if currentDuration <= 0 then
+        return
+    end
+
+    local target = math.clamp(math.floor(seekTargetProgress + 0.5), 0, currentDuration)
+    currentProgress = target
+    syncClock = os.clock()
+
+    task.spawn(function()
+        local result, err = api("/seek", "POST", {
+            position_ms = target
+        })
+
+        if result == nil then
+            warn("Erro ao adiantar/voltar a musica:", err)
+            task.wait(0.15)
+            pcall(syncCurrentTrack)
+            return
+        end
+
+        -- Pequeno atraso para o Spotify aplicar a nova posicao.
+        task.wait(0.2)
+        pcall(syncCurrentTrack)
+    end)
+end
+
+progressHitbox.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        seekDragging = true
+        previewSeek(input.Position.X)
+    end
+end)
+
+UIS.InputChanged:Connect(function(input)
+    if seekDragging and (
+        input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch
+    ) then
+        previewSeek(input.Position.X)
+    end
+end)
+
+UIS.InputEnded:Connect(function(input)
+    if seekDragging and (
+        input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch
+    ) then
+        seekDragging = false
+        commitSeek()
+    end
+end)
+
+-- =========================================================
+
+-- BARRA + TEMPOS
+
+-- =========================================================
+
+
+
+task.spawn(function()
+
+    while gui.Parent do
+
+        local progress =
+
+            currentProgress
+
+
+
+        if playing and not seekDragging then
+
+            progress =
+
+                progress
+
+                + (
+
+                    os.clock()
+
+                    - syncClock
+
+                )
+
+                * 1000
+
+        end
+
+
+
+        if currentDuration > 0 then
+
+            progress =
+
+                math.clamp(
+
+                    progress,
+
+                    0,
+
+                    currentDuration
+
+                )
+
+
+
+            local percent =
+
+                progress
+
+                / currentDuration
+
+
+
+            progressFill.Size =
+
+                UDim2.new(
+
+                    percent,
+
+                    0,
+
+                    1,
+
+                    0
+
+                )
+
+        else
+
+            progress =
+
+                0
+
+
+
+            progressFill.Size =
+
+                UDim2.new(
+
+                    0,
+
+                    0,
+
+                    1,
+
+                    0
+
+                )
+
+        end
+
+
+
+        currentTimeLabel.Text =
+
+            formatTime(
+
+                progress
+
+            )
+
+
+
+        durationTimeLabel.Text =
+
+            formatTime(
+
+                currentDuration
+
+            )
+
+
+
+        task.wait(0.05)
+
+    end
+
+end)
+
+
+
+-- =========================================================
+
+-- LOOP SPOTIFY
+
+-- =========================================================
+
+
+
+task.spawn(function()
+
+    while gui.Parent do
+
+        pcall(
+
+            updateStatus
+
+        )
+
+
+
+        if not playPauseBusy then
+
+            pcall(
+
+                syncCurrentTrack
+
+            )
+
+        end
+
+
+
+        task.wait(1)
+
+    end
+
+end)
+
+
+
+-- =========================================================
+
+-- ARRASTAR PELA CAPA
+
+-- =========================================================
+
+
+
+local dragging = false
+
+local dragStart = nil
+
+local startPosition = nil
+
+
+
+cover.InputBegan:Connect(function(input)
+
+    if input.UserInputType ==
+
+        Enum.UserInputType.MouseButton1 then
+
+
+
+        dragging = true
+
+
+
+        dragStart =
+
+            input.Position
+
+
+
+        startPosition =
+
+            holder.Position
+
+    end
+
+end)
+
+
+
+UIS.InputChanged:Connect(function(input)
+
+    if dragging
+
+        and input.UserInputType ==
+
+        Enum.UserInputType.MouseMovement
+
+    then
+
+        local delta =
+
+            input.Position
+
+            - dragStart
+
+
+
+        holder.Position =
+
+            UDim2.new(
+
+                startPosition.X.Scale,
+
+
+
+                startPosition.X.Offset
+
+                    + delta.X,
+
+
+
+                startPosition.Y.Scale,
+
+
+
+                startPosition.Y.Offset
+
+                    + delta.Y
+
+            )
+
+    end
+
+end)
+
+
+
+UIS.InputEnded:Connect(function(input)
+
+    if input.UserInputType ==
+
+        Enum.UserInputType.MouseButton1
+
+    then
+
+        dragging = false
+
+    end
+
+end)
+
+
+
+-- =========================================================
+-- VISUAL UPGRADE (SOMENTE APARENCIA)
+-- =========================================================
+
+local function addSoftStroke(target, color, transparency, thickness)
+    local existing = target:FindFirstChild("VisualStroke")
+    if existing then
+        existing:Destroy()
+    end
+
+    local s = Instance.new("UIStroke")
+    s.Name = "VisualStroke"
+    s.Color = color or Color3.fromRGB(62, 62, 62)
+    s.Transparency = transparency or 0.45
+    s.Thickness = thickness or 1
+    s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    s.Parent = target
+    return s
+end
+
+local function addSoftGradient(target, topColor, bottomColor)
+    local existing = target:FindFirstChild("VisualGradient")
+    if existing then
+        existing:Destroy()
+    end
+
+    local g = Instance.new("UIGradient")
+    g.Name = "VisualGradient"
+    g.Rotation = 90
+    g.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, topColor),
+        ColorSequenceKeypoint.new(1, bottomColor)
+    })
+    g.Parent = target
+    return g
+end
+
+-- Superficies principais: mesmo formato, apenas acabamento melhor.
+dockStroke.Color = Color3.fromRGB(70, 70, 70)
+dockStroke.Transparency = 0.42
+panelStroke.Color = Color3.fromRGB(66, 66, 66)
+panelStroke.Transparency = 0.46
+
+addSoftGradient(
+    dock,
+    Color3.fromRGB(18, 18, 18),
+    Color3.fromRGB(9, 9, 9)
+)
+
+addSoftGradient(
+    panel,
+    Color3.fromRGB(18, 18, 18),
+    Color3.fromRGB(10, 10, 10)
+)
+
+addSoftGradient(
+    content,
+    Color3.fromRGB(20, 20, 20),
+    Color3.fromRGB(14, 14, 14)
+)
+
+-- Capa com borda discreta.
+local coverStroke = addSoftStroke(
+    cover,
+    Color3.fromRGB(72, 72, 72),
+    0.34,
+    1
+)
+
+-- Barra de progresso com preenchimento mais limpo.
+local progressGradient = Instance.new("UIGradient")
+progressGradient.Name = "ProgressGradient"
+progressGradient.Rotation = 0
+progressGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(24, 195, 84)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(57, 230, 117))
+})
+progressGradient.Parent = progressFill
+
+local progressKnob = Instance.new("Frame")
+progressKnob.Name = "ProgressKnob"
+progressKnob.Parent = progressFill
+progressKnob.AnchorPoint = Vector2.new(0.5, 0.5)
+progressKnob.Position = UDim2.new(1, 0, 0.5, 0)
+progressKnob.Size = UDim2.fromOffset(7, 7)
+progressKnob.BackgroundColor3 = Color3.fromRGB(245, 245, 245)
+progressKnob.BorderSizePixel = 0
+progressKnob.ZIndex = progressFill.ZIndex + 2
+corner(progressKnob, 999)
+addSoftStroke(progressKnob, Color3.fromRGB(30, 215, 96), 0.15, 1)
+
+-- Volume: mesma barra vertical, agora com acabamento e marcador.
+volumeTrack.BackgroundColor3 = Color3.fromRGB(44, 44, 44)
+
+local volumeGradient = Instance.new("UIGradient")
+volumeGradient.Name = "VolumeGradient"
+volumeGradient.Rotation = 90
+volumeGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 92, 92)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(232, 48, 48))
+})
+volumeGradient.Parent = volumeFill
+
+local volumeKnob = Instance.new("Frame")
+volumeKnob.Name = "VolumeKnob"
+volumeKnob.Parent = volumeFill
+volumeKnob.AnchorPoint = Vector2.new(0.5, 0.5)
+volumeKnob.Position = UDim2.new(0.5, 0, 0, 0)
+volumeKnob.Size = UDim2.fromOffset(8, 8)
+volumeKnob.BackgroundColor3 = Color3.fromRGB(245, 245, 245)
+volumeKnob.BorderSizePixel = 0
+volumeKnob.ZIndex = volumeFill.ZIndex + 2
+corner(volumeKnob, 999)
+addSoftStroke(volumeKnob, Color3.fromRGB(255, 72, 72), 0.12, 1)
+
+-- Busca com foco visual, sem mudar o funcionamento.
+local searchStroke = addSoftStroke(
+    searchContainer,
+    Color3.fromRGB(66, 66, 66),
+    0.46,
+    1
+)
+
+searchBox.Focused:Connect(function()
+    tween(searchStroke, {
+        Color = C.green,
+        Transparency = 0.08
+    }, 0.14)
+
+    tween(searchContainer, {
+        BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+    }, 0.14)
+end)
+
+searchBox.FocusLost:Connect(function()
+    tween(searchStroke, {
+        Color = Color3.fromRGB(66, 66, 66),
+        Transparency = 0.46
+    }, 0.14)
+
+    tween(searchContainer, {
+        BackgroundColor3 = C.button
+    }, 0.14)
+end)
+
+-- Botao Buscar mais refinado.
+local searchButtonStroke = addSoftStroke(
+    searchButton,
+    Color3.fromRGB(85, 255, 145),
+    0.46,
+    1
+)
+
+searchButton.MouseEnter:Connect(function()
+    tween(searchButton, {
+        BackgroundColor3 = Color3.fromRGB(46, 225, 108)
+    }, 0.12)
+    tween(searchButtonStroke, {
+        Transparency = 0.16
+    }, 0.12)
+end)
+
+searchButton.MouseLeave:Connect(function()
+    tween(searchButton, {
+        BackgroundColor3 = C.green
+    }, 0.12)
+    tween(searchButtonStroke, {
+        Transparency = 0.46
+    }, 0.12)
+end)
+
+-- Controles do mini-player: mesmo tamanho e posicao, apenas borda/contraste.
+local function upgradeControlButton(button)
+    local s = addSoftStroke(
+        button,
+        Color3.fromRGB(70, 70, 70),
+        0.52,
+        1
+    )
+
+    button.MouseEnter:Connect(function()
+        tween(s, {
+            Color = Color3.fromRGB(104, 104, 104),
+            Transparency = 0.18
+        }, 0.1)
+    end)
+
+    button.MouseLeave:Connect(function()
+        tween(s, {
+            Color = Color3.fromRGB(70, 70, 70),
+            Transparency = 0.52
+        }, 0.1)
+    end)
+end
+
+upgradeControlButton(previousButton)
+upgradeControlButton(playPauseButton)
+upgradeControlButton(nextButton)
+upgradeControlButton(menuButton)
+
+-- Play/Pause ganha um leve destaque sem mudar sua cor base nem a logica.
+local playGlow = Instance.new("UIStroke")
+playGlow.Name = "PlayGlow"
+playGlow.Color = C.green
+playGlow.Transparency = 0.56
+playGlow.Thickness = 1
+playGlow.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+playGlow.Parent = playPauseButton
+
+-- Tabs: borda sutil e formato de pill preservando o seletor existente.
+local function upgradeTab(tab)
+    if not tab:IsA("TextButton") then
+        return
+    end
+
+    local s = addSoftStroke(
+        tab,
+        Color3.fromRGB(62, 62, 62),
+        0.62,
+        1
+    )
+
+    tab.MouseEnter:Connect(function()
+        tween(s, {
+            Transparency = 0.28
+        }, 0.1)
+    end)
+
+    tab.MouseLeave:Connect(function()
+        tween(s, {
+            Transparency = 0.62
+        }, 0.1)
+    end)
+end
+
+for _, child in ipairs(tabs:GetChildren()) do
+    upgradeTab(child)
+end
+
+tabs.ChildAdded:Connect(function(child)
+    task.defer(function()
+        if child and child.Parent == tabs then
+            upgradeTab(child)
+        end
+    end)
+end)
+
+-- Resultados/listas: borda muito discreta nas linhas atuais e futuras.
+local function upgradeListRow(row)
+    if not row:IsA("TextButton") then
+        return
+    end
+
+    if row:GetAttribute("SpotifyVisualRow") then
+        return
+    end
+
+    row:SetAttribute("SpotifyVisualRow", true)
+
+    local s = addSoftStroke(
+        row,
+        Color3.fromRGB(54, 54, 54),
+        0.72,
+        1
+    )
+
+    row.MouseEnter:Connect(function()
+        tween(s, {
+            Color = Color3.fromRGB(74, 74, 74),
+            Transparency = 0.36
+        }, 0.1)
+    end)
+
+    row.MouseLeave:Connect(function()
+        tween(s, {
+            Color = Color3.fromRGB(54, 54, 54),
+            Transparency = 0.72
+        }, 0.1)
+    end)
+end
+
+for _, child in ipairs(content:GetChildren()) do
+    upgradeListRow(child)
+end
+
+content.ChildAdded:Connect(function(child)
+    task.defer(function()
+        if child and child.Parent == content then
+            upgradeListRow(child)
+        end
+    end)
+end)
+
+-- Status ganha um halo discreto.
+local statusGlow = addSoftStroke(
+    statusDot,
+    C.green,
+    0.52,
+    1
+)
+
+-- Animacao visual leve baseada no estado atual, sem novas chamadas HTTP.
+task.spawn(function()
+    while gui.Parent do
+        progressKnob.Visible = currentDuration > 0
+
+        if playing then
+            tween(coverStroke, {
+                Color = C.green,
+                Transparency = 0.42
+            }, 0.2)
+
+            tween(playGlow, {
+                Transparency = 0.28
+            }, 0.2)
+        else
+            tween(coverStroke, {
+                Color = Color3.fromRGB(72, 72, 72),
+                Transparency = 0.34
+            }, 0.2)
+
+            tween(playGlow, {
+                Transparency = 0.56
+            }, 0.2)
+        end
+
+        if statusText.Text == "Conectado" then
+            statusGlow.Color = C.green
+        else
+            statusGlow.Color = C.red
+        end
+
+        task.wait(0.35)
+    end
+end)
+
+-- =========================================================
+
+-- INICIAR
+
+-- =========================================================
+
+
+
+pcall(
+
+    updateStatus
+
+)
+
+
+
+pcall(
+
+    syncCurrentTrack
+
+)
+
+
+
+pcall(
+
+    showPlaylists
+
+)
